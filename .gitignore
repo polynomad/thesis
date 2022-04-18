@@ -1,2 +1,4 @@
 .DS_Store
-dataset/
+data/DOTA2_0/
+.vscode
+code/OBBDetection/checkpoints/
