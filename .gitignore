@@ -1,5 +1,9 @@
 .DS_Store
+.vscode
+__pycache__/
+
 # dataset related
+## original dataset
 data/DOTA2_0/test-challenge/images/
 data/DOTA2_0/test-challenge/meta/
 data/DOTA2_0/test-dev/images/
@@ -11,6 +15,13 @@ data/DOTA2_0/val/images/
 data/DOTA2_0/val/labelTxt-v2.0/
 data/DOTA2_0/val/meta/
 
+## preprocessed dataset 1
+### sliding window cropping method
+### window size 1024
+### overlap 50%
+data/DOTA2_0_split_default/train/part4/images/
+data/DOTA2_0_split_default/train/part5/images/
+data/DOTA2_0_split_default/train/part6/images/
 
-.vscode
+# network parameters related
 code/OBBDetection/checkpoints/

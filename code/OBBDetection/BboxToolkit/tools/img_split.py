@@ -117,7 +117,7 @@ def get_sliding_window(info, sizes, gaps, img_rate_thr):
     windows = []
     width, height = info['width'], info['height']
     for size, gap in zip(sizes, gaps):
-        assert size > gap, f'invaild size gap pair [{size} {gap}]'
+        assert size > gap, f'invalid size gap pair [{size} {gap}]'
         step = size - gap
 
         x_num = 1 if width <= size else ceil((width-size)/step+1)
