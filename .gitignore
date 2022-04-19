@@ -1,4 +1,16 @@
 .DS_Store
-data/DOTA2_0/
+# dataset related
+data/DOTA2_0/test-challenge/images/
+data/DOTA2_0/test-challenge/meta/
+data/DOTA2_0/test-dev/images/
+data/DOTA2_0/test-dev/meta/
+data/DOTA2_0/train/images/
+data/DOTA2_0/train/labelTxt-v2.0/
+data/DOTA2_0/train/meta/
+data/DOTA2_0/val/images/
+data/DOTA2_0/val/labelTxt-v2.0/
+data/DOTA2_0/val/meta/
+
+
 .vscode
 code/OBBDetection/checkpoints/
