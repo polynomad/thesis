@@ -82,7 +82,7 @@ Then, set `~/.bashrc` to auto activate the venv when logging in (just add `sourc
 
 ### 2.1 Dataset Evaluation
 
-For evaluating the bounding box coverage of the entire dataset:
+#### 2.1.1 evaluating the bounding box coverage of the entire dataset
 
 ```bash
 python ./code/OBBDetection/BboxToolkit/tools/bbox_coverage.py \
@@ -91,6 +91,20 @@ python ./code/OBBDetection/BboxToolkit/tools/bbox_coverage.py \
 --img_dirs ./data/DOTA2_0/train/images/part4 \
 --ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train
 ```
+
+#### 2.1.2 evaluating the upper limit of recognized objects with window rejection
+
+```bash
+python ./code/OBBDetection/BboxToolkit/tools/window_rej.py \
+--load_type dota \
+--base_json ./code/OBBDetection/BboxToolkit/tools/split_configs/dota2_0/ss_train.json \
+--img_dirs ./data/DOTA2_0/train/images/part4 \
+--ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train \
+--save_dir ./data/DOTA2_0_split_default/train/part4 \
+--obj_rej_thres 0
+```
+
+#### 2.1.3 splitting images into sub images (contained in the original codebase)
 
 Before training (a sub-image based aerial image detector), DOTA dataset is to be splitted. `PLACEHOLDER`. The following code is an example. For further information, please refer to [BboxToolkit documentation](./code/OBBDetection/BboxToolkit/README.md) and [BboxToolkit usage](./code/OBBDetection/BboxToolkit/USAGE.md).
 

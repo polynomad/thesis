@@ -55,6 +55,10 @@ def add_parser(parser):
     parser.add_argument('--padding_value', nargs='+',type=int, default=[0],
                         help='padding value, 1 or channel number')
 
+    # arguments for discarding sub images
+    parser.add_argument('--obj_rej_thres', nargs='+',type=int, default=[0],
+                        help='object rejection threshold. If this is set to 0, then no sub images will be rejected because the number of objects it contains is too small.')
+
     #argument for saving
     parser.add_argument('--filter_empty', action='store_true',
                         help='filter out empty patches, speed up trining splitting')
