@@ -1,9 +1,19 @@
+import argparse
+import json
+import os.path as osp
+import BboxToolkit as bt
+
+
 def add_parser(parser):
     #argument for loading data
-    parser.add_argument('--log_dirs', type=str, default=None,
-                        help='directory of log file after the splitting of image')
+    parser.add_argument('--load_type', type=str, default=None,
+                        help='loading function type')
+    parser.add_argument('--classes', type=str, default=None,
+                        help='the classes for loading data')
     parser.add_argument('--ann_dirs', nargs='+', type=str, default=None,
                         help='annotations dirs')
+    parser.add_argument('--img_dirs', nargs='+', type=str, default=None,
+                        help='images dirs, must give a value')
     #argument for splitting image
     parser.add_argument('--sizes', nargs='+', type=int, default=[1024],
                         help='the sizes of sliding windows')
@@ -19,9 +29,6 @@ def add_parser(parser):
                         help='not padding patches to regular size')
     parser.add_argument('--padding_value', nargs='+',type=int, default=[0],
                         help='padding value, 1 or channel number')
-    #argument for saving data
-    parser.add_argument('--save_dir', type=str, default=None,
-    					help='directory to save evaluation results')
 
 
 def abspath(path):
@@ -39,17 +46,6 @@ def parse_args():
     add_parser(parser)
     args = parser.parse_args()
 
-    if args.base_json is not None:
-        with open(args.base_json, 'r') as f:
-            prior_config = json.load(f)
-
-        for action in parser._actions:
-            if action.dest not in prior_config or \
-               not hasattr(action, 'default'):
-                continue
-            action.default = prior_config[action.dest]
-            args = parser.parse_args()
-
     # assert arguments
     assert args.load_type is not None, "argument load_type can't be None"
     assert args.img_dirs is not None, "argument img_dirs can't be None"
@@ -58,27 +54,25 @@ def parse_args():
     args.ann_dirs = abspath(args.ann_dirs)
     if args.classes is not None and osp.isfile(args.classes):
         args.classes = abspath(args.classes)
-    assert args.prior_annfile is None or args.prior_annfile.endswith('.pkl')
-    args.prior_annfile = abspath(args.prior_annfile)
-    assert args.merge_type in ['addition', 'replace']
     assert len(args.sizes) == len(args.gaps)
     assert len(args.sizes) == 1 or len(args.rates) == 1
-    assert args.save_ext in bt.img_exts
     assert args.iof_thr >= 0 and args.iof_thr < 1
     assert args.iof_thr >= 0 and args.iof_thr <= 1
-    assert not osp.exists(args.save_dir), \
-            f'{osp.join(args.save_dir)} already exists'
-    args.save_dir = abspath(args.save_dir)
     return args
 
-def main(image_width, image_height, bbox):
-	"""calculate bounding box coverage of one single image.
-
-	:image_width: image width, in pixels, integer
-	:image_height: image height, in pixels, integer
-	:bbox: 
-
-	"""
+def main():
+    args = parse_args()
+    infos, img_dirs = [], []
+    load_func = getattr(bt.datasets, 'load_'+args.load_type)
+    for img_dir, ann_dir in zip(args.img_dirs, args.ann_dirs):
+        _infos, classes = load_func(
+            img_dir=img_dir,
+            ann_dir=ann_dir,
+            classes=args.classes)
+        _img_dirs = [img_dir for _ in range(len(_infos))]
+        infos.extend(_infos)
+        img_dirs.extend(_img_dirs)
+    print('hello')
 
 if __name__ == '__main__':
-	main()
+    main()
