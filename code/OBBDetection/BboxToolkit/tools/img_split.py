@@ -113,6 +113,8 @@ def parse_args():
 
 
 def get_sliding_window(info, sizes, gaps, img_rate_thr):
+    '''purely use the resolution information to do sub image separation
+    '''
     eps = 0.01
     windows = []
     width, height = info['width'], info['height']
@@ -153,6 +155,7 @@ def get_sliding_window(info, sizes, gaps, img_rate_thr):
 def get_window_obj(info, windows, iof_thr):
     bboxes = info['ann']['bboxes']
     iofs = bt.bbox_overlaps(bboxes, windows, mode='iof')
+    # here the iof is calculated between sub image window and each annotations
 
     window_anns = []
     for i in range(windows.shape[0]):

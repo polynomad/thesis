@@ -89,7 +89,7 @@ python ./code/OBBDetection/BboxToolkit/tools/bbox_coverage.py \
 --load_type dota \
 --classes dota2.0 \
 --img_dirs ./data/DOTA2_0/train/images/part4 \
---ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train \
+--ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train
 ```
 
 Before training (a sub-image based aerial image detector), DOTA dataset is to be splitted. `PLACEHOLDER`. The following code is an example. For further information, please refer to [BboxToolkit documentation](./code/OBBDetection/BboxToolkit/README.md) and [BboxToolkit usage](./code/OBBDetection/BboxToolkit/USAGE.md).

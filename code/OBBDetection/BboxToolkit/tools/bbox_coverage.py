@@ -1,8 +1,7 @@
 import argparse
-import json
+import numpy as np
 import os.path as osp
 import BboxToolkit as bt
-
 
 def add_parser(parser):
     #argument for loading data
@@ -60,6 +59,17 @@ def parse_args():
     assert args.iof_thr >= 0 and args.iof_thr <= 1
     return args
 
+def area_obb(bbox):
+    '''calculate the area of an oriented bbox using shoelace formula
+    bbox: an array, int, size=8 clockwise annotation
+    '''
+    x = np.array([bbox[0],bbox[2],bbox[4],bbox[6]])
+    y = np.array([bbox[1],bbox[3],bbox[5],bbox[7]])
+    i = np.arange(len(x))
+    area = np.abs(np.sum(x[i-1]*y[i]-x[i]*y[i-1])*0.5)
+    return area
+
+
 def main():
     args = parse_args()
     infos, img_dirs = [], []
@@ -72,7 +82,19 @@ def main():
         _img_dirs = [img_dir for _ in range(len(_infos))]
         infos.extend(_infos)
         img_dirs.extend(_img_dirs)
-    print('hello')
+    print('calculating bbox coverage')
+    bbox_cover_list = []
+    for info in infos:
+        # resolution
+        area = info['width'] * info['height']
+        bboxes = info['ann']['bboxes']
+        sum_bbox_area = 0;
+        for bbox in bboxes:
+            # print(bbox) # array
+            sum_bbox_area += area_obb(bbox)
+        bbox_cover_list.append(sum_bbox_area/area)
+    print(f"The mean of bbox coverage is {np.mean(bbox_cover_list)}")
+    print(f"The variance of bbox coverage is {np.var(bbox_cover_list)}")
 
 if __name__ == '__main__':
     main()
