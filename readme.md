@@ -61,6 +61,8 @@ data
 
 ### 2.0 Prequisites
 
+
+#### 2.0.1 Installations of env
 Install the necessary dependencies via conda venv. 
 
 ```bash
@@ -79,6 +81,8 @@ cd ../../..
 ```
 
 Then, set `~/.bashrc` to auto activate the venv when logging in (just add `source activate obbdetection` in the last line of `~/.bashrc`).
+
+#### 2.0.2 Note Compilation
 
 ### 2.1 Dataset Evaluation
 
