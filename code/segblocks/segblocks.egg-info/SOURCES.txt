@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+setup.py
+segblocks/__init__.py
+segblocks/dualrestensor.py
+segblocks/policy.py
+segblocks/profiler.py
+segblocks/segblocks.py
+segblocks.egg-info/PKG-INFO
+segblocks.egg-info/SOURCES.txt
+segblocks.egg-info/dependency_links.txt
+segblocks.egg-info/top_level.txt

@@ -2,7 +2,8 @@ _base_ = './faster_rcnn_orpn_r50_fpn_1x_dota10.py'
 
 # dataset
 dataset_type = 'DOTADataset'
-data_root = 'data/split_ms_dota1_0/'
+# data_root = 'data/split_ms_dota1_0/'
+data_root = "data/DOTA_2_0_split_default/train/part4/"
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [

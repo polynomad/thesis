@@ -40,14 +40,12 @@ data
     │   │   └── part9                #265 images
     │   └── meta
     ├── train
-    │   ├── images                   ##419 images
-    │   │   ├── part4                #144 images
-    │   │   ├── part5                #210 images
-    │   │   └── part6                #65  images
+    │   ├── images                   #419 images containing part 4, 5, 6.
     │   ├── labelTxt-v2.0
     │   │   ├── DOTA-v2.0_train      #1830 annotations
     │   │   └── DOTA-v2.0_train_hbb  #1830 annotations
     │   └── meta
+    ├── train_split_default          # default, with size 1024 and gap 200
     └── val
         ├── images                   ##135 images
         │   └── part2                #135 images
@@ -61,8 +59,10 @@ data
 
 ### 2.0 Prequisites
 
+*Note that all the bash scripts are executed in the root directory (not inside `./code/` or `./code/OBBDetection/`).*
 
 #### 2.0.1 Installations of env
+
 Install the necessary dependencies via conda venv. 
 
 ```bash
@@ -116,23 +116,9 @@ Before training (a sub-image based aerial image detector), DOTA dataset is to be
 python ./code/OBBDetection/BboxToolkit/tools/img_split.py \
 --load_type dota \
 --base_json ./code/OBBDetection/BboxToolkit/tools/split_configs/dota2_0/ss_train.json \
---img_dirs ./data/DOTA2_0/train/images/part4 \
+--img_dirs ./data/DOTA2_0/train/images \
 --ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train \
---save_dir ./data/DOTA2_0_split_default/train/part4
-
-python ./code/OBBDetection/BboxToolkit/tools/img_split.py \
---load_type dota \
---base_json ./code/OBBDetection/BboxToolkit/tools/split_configs/dota2_0/ss_train.json \
---img_dirs ./data/DOTA2_0/train/images/part5 \
---ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train \
---save_dir ./data/DOTA2_0_split_default/train/part5
-
-python ./code/OBBDetection/BboxToolkit/tools/img_split.py \
---load_type dota \
---base_json ./code/OBBDetection/BboxToolkit/tools/split_configs/dota2_0/ss_train.json \
---img_dirs ./data/DOTA2_0/train/images/part6 \
---ann_dirs ./data/DOTA2_0/train/labelTxt-v2.0/DOTA-v2.0_train \
---save_dir ./data/DOTA2_0_split_default/train/part6
+--save_dir ./data/DOTA2_0/train_split_default
 ```
 
 To visualize: 
