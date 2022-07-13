@@ -51,15 +51,21 @@ def execute_with_grid(net, image, grid, force_prealloc=False):
     with timings.env('segblocks/to_blocks'):
         # split the image into blocks (DualResTensor)
         image = to_blocks(image, grid)
+        print('data size of dual res image: ', image.shape) 
+        # output when running tests.py, (torch.Size([18, 3, 4, 4]), torch.Size([1, 3, 2, 2])) with input size torch.Size([2, 3, 12, 12])
+        # check DualResTensor class
+        print(image.metadata.nlowres)
+        print(image.metadata.nhighres)
 
     with timings.env('segblocks/model'):
         # run the model
         out = net(image)
+    # print(out.metadata.nlowres)
 
     with timings.env('segblocks/combine'):
         # combine
         out = out.combine()
-
+    
     return out
 
 

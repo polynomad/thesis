@@ -17,12 +17,16 @@ net = nn.Sequential(
 if True:
     ### all high-res blocks should be identical to running without blocks
     x = torch.randn((N, C, H, W), dtype=torch.float, device='cuda', requires_grad=False)
+    print('original data size: ', x.shape)
     grid = torch.ones(N, H//block_size, W//block_size, device='cuda').bool()
+    print('grid size: ', grid.shape)
+    print(grid)
 
     # run with blocks
     a = x.clone()
     a.requires_grad = True
     out_blocks = segblocks.execute_with_grid(net, a, grid)
+    
 
     # run without blocks
     b = x.clone()

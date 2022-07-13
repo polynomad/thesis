@@ -143,3 +143,13 @@ python ./code/OBBDetection/demo/image_demo.py \
 ./code/OBBDetection/configs/obb/oriented_rcnn/faster_rcnn_orpn_r50_fpn_1x_ms_rr_dota10.py \
 ./code/OBBDetection/checkpoints/faster_rcnn_orpn_r50_fpn_1x_mssplit_rr_dota10_epoch12.pth
 ```
+
+# SegBlocks
+
+```bash
+export PYTHONPATH='/esat/drejo/r0773655/thesis/code/segblocks-main/segblocks/'
+```
+
+RuntimeError: CUDA out of memory. Tried to allocate 144.00 MiB (GPU 0; 3.82 GiB total capacity; 2.29 GiB already allocated; 104.88 MiB free; 2.43 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+problem solved. cannot see HTCondor job from vs code terminal. 

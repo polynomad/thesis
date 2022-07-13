@@ -1,0 +1,1 @@
+- `test_segblocks_fcos.py`: Replace the default backbone with block modules and compare the results. Assume that all blocks are processing in a higher resolution so that the policy network can be neglected. 
