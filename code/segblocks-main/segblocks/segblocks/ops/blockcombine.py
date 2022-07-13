@@ -7,20 +7,21 @@ from .util import (Dtype, Stream, _kernel_header_blocks, assertcuda,
 
 class CombineFunction(Function):
     @staticmethod
-    def forward(ctx, x, highres, lowres, block_idx, block_size, lowres_factor):
+    def forward(ctx, x: torch.Tensor, data_hr: torch.Tensor, data_lr: torch.Tensor, 
+                block_idx: torch.Tensor, block_size: int, lowres_factor: int) -> torch.Tensor:
         assert assertcuda(x, dtypes=DTYPES_FLOAT)
-        assert assertcuda(highres, dtypes=DTYPES_FLOAT)
-        assert assertcuda(lowres, dtypes=DTYPES_FLOAT)
+        assert assertcuda(data_hr, dtypes=DTYPES_FLOAT)
+        assert assertcuda(data_lr, dtypes=DTYPES_FLOAT)
         assert assertcuda(block_idx, dtypes=torch.int32)
 
         ctx.save_for_backward(block_idx)
         ctx.block_size = block_size
         ctx.lowres_factor = lowres_factor
-        ctx.highres_shape = highres.shape
-        ctx.lowres_shape = lowres.shape
+        ctx.highres_shape = data_hr.shape
+        ctx.lowres_shape = data_lr.shape
 
-        assert len(highres) == 0 or highres.shape[2:] == (block_size, block_size)
-        assert len(lowres)  == 0 or lowres.shape[2:]  == (block_size//lowres_factor, block_size//lowres_factor)
+        assert len(data_hr) == 0 or data_hr.shape[2:] == (block_size, block_size)
+        assert len(data_lr)  == 0 or data_lr.shape[2:]  == (block_size//lowres_factor, block_size//lowres_factor)
 
         N,C,H,W = x.shape
         npixels = N*H*W
@@ -32,7 +33,7 @@ class CombineFunction(Function):
                 block_size=block_size, lowres_factor=lowres_factor)
         f(block=block, grid=grid,
             args=[
-                x.data_ptr(), highres.data_ptr(), lowres.data_ptr(), 
+                x.data_ptr(), data_hr.data_ptr(), data_lr.data_ptr(), 
                 block_idx.data_ptr(), npixels
             ],
             stream=Stream(ptr=torch.cuda.current_stream().cuda_stream))

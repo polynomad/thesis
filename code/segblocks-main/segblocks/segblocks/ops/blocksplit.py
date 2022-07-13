@@ -1,14 +1,17 @@
+from typing import Tuple
+
 import torch
 from torch.autograd import Function
 
-from .util import (Dtype, Stream, _kernel_header_blocks, assertcuda,
-                   get_threads_and_blocks, load_kernel, DTYPES_FLOAT)
+from .util import (DTYPES_FLOAT, Dtype, Stream, _kernel_header_blocks,
+                   assertcuda, get_threads_and_blocks, load_kernel)
 
-CUDA_NUM_THREADS = 512
 
 class SplitFunction(Function):
     @staticmethod
-    def forward(ctx, x, data_hr, data_lr, map_hr, map_lr, block_idx, block_size, lowres_factor):
+    def forward(ctx, x: torch.Tensor, data_hr: torch.Tensor, data_lr: torch.Tensor, 
+                map_hr: torch.Tensor, map_lr: torch.Tensor, block_idx: torch.Tensor, 
+                block_size: int , lowres_factor: int) -> Tuple[torch.Tensor, torch.Tensor]:
         assert assertcuda(x, dtypes=x.dtype)
         assert assertcuda(data_hr, dtypes=x.dtype)
         assert assertcuda(data_lr, dtypes=x.dtype)
@@ -46,28 +49,28 @@ class SplitFunction(Function):
         return data_hr, data_lr
 
     @staticmethod
-    def backward(ctx, grad_highres, grad_lowres):
+    def backward(ctx, grad_hr, grad_lr):
         block_idx = ctx.saved_variables[0]
-        grad_highres = grad_highres.contiguous()
-        grad_lowres = grad_lowres.contiguous()
-        assert assertcuda(grad_highres, dtypes=DTYPES_FLOAT)
-        assert assertcuda(grad_lowres, dtypes=DTYPES_FLOAT)
+        grad_hr = grad_hr.contiguous()
+        grad_lr = grad_lr.contiguous()
+        assert assertcuda(grad_hr, dtypes=DTYPES_FLOAT)
+        assert assertcuda(grad_lr, dtypes=DTYPES_FLOAT)
 
-        assert len(grad_highres) == 0 or grad_highres.shape[2:] == (ctx.block_size,)*2
-        assert len(grad_lowres)  == 0 or grad_lowres.shape[2:] == (ctx.block_size//ctx.lowres_factor,)*2
+        assert len(grad_hr) == 0 or grad_hr.shape[2:] == (ctx.block_size,)*2
+        assert len(grad_lr)  == 0 or grad_lr.shape[2:] == (ctx.block_size//ctx.lowres_factor,)*2
 
         N,C,H,W = ctx.NCHW
-        x = torch.zeros((N,C,H,W), device='cuda', dtype=grad_highres.dtype)
+        x = torch.zeros((N,C,H,W), device='cuda', dtype=grad_hr.dtype)
         npixels = N*H*W
 
         block, grid = get_threads_and_blocks(npixels, C)
 
-        f = load_kernel('split_kernel_backward', _split_kernel_backward, dtype=Dtype(grad_highres),
+        f = load_kernel('split_kernel_backward', _split_kernel_backward, dtype=Dtype(grad_hr),
                  batch_size=N, channels=C, height=H, width=W, 
                 block_size=ctx.block_size, lowres_factor=ctx.lowres_factor, do_avg=int(True))
         f(block=block, grid=grid,
             args=[
-                x.data_ptr(), grad_highres.data_ptr(), grad_lowres.data_ptr(), 
+                x.data_ptr(), grad_hr.data_ptr(), grad_lr.data_ptr(), 
                 block_idx.data_ptr(), int(npixels)
             ],
             stream=Stream(ptr=torch.cuda.current_stream().cuda_stream))

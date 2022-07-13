@@ -78,6 +78,7 @@ pip install -v -e .
 cd BboxToolkit
 pip install -v -e . 
 cd ../../..
+conda install cupy
 ```
 
 Then, set `~/.bashrc` to auto activate the venv when logging in (just add `source activate obbdetection` in the last line of `~/.bashrc`).

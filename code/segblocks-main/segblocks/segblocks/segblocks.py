@@ -36,17 +36,17 @@ def execute_with_policy(net, policy, image, meta, force_prealloc=False):
     return out, meta
 
 def execute_with_grid(net, image, grid, force_prealloc=False):
-    if force_prealloc:
-        # if force_prealloc, run the image without 0 highres blocks and will all highres blocks
-        # to preallocate the memory and avoid memory fragmentation due to changing tensor sizes
-        # only required for the first run of the model
-        print('segblocks pre_alloc')
-        grid2 = torch.ones_like(grid)
-        image2 = to_blocks(image, grid2)
-        _ = net(image2)
-        grid2 = torch.zeros_like(grid)
-        image2 = to_blocks(image, grid2)
-        _ = net(image2)
+    # if force_prealloc:
+    #     # if force_prealloc, run the image without 0 highres blocks and will all highres blocks
+    #     # to preallocate the memory and avoid memory fragmentation due to changing tensor sizes
+    #     # only required for the first run of the model
+    #     print('segblocks pre_alloc')
+    #     grid2 = torch.ones_like(grid)
+    #     image2 = to_blocks(image, grid2)
+    #     _ = net(image2)
+    #     grid2 = torch.zeros_like(grid)
+    #     image2 = to_blocks(image, grid2)
+    #     _ = net(image2)
 
     with timings.env('segblocks/to_blocks'):
         # split the image into blocks (DualResTensor)

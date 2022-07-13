@@ -6,6 +6,8 @@ from torch.distributions import Bernoulli
 import numpy as np
 import random
 
+BN_MOMENTUM = 0.02
+
 def all_policies():
     return {
         'disabled': None,
@@ -22,13 +24,13 @@ class PolicyNet(nn.Module):
         features = int(64*width_factor)
         layers = []
         layers.append(nn.Conv2d(3, features, kernel_size=7, padding=3, dilation=1, stride=4, bias=False))
-        layers.append(nn.BatchNorm2d(features))
+        layers.append(nn.BatchNorm2d(features,momentum=BN_MOMENTUM))
         layers.append(nn.ReLU(inplace=False))
         layers.append(nn.Conv2d(features, features, kernel_size=5, padding=2, dilation=1, stride=2, bias=False))
-        layers.append(nn.BatchNorm2d(features))
+        layers.append(nn.BatchNorm2d(features,momentum=BN_MOMENTUM))
         layers.append(nn.ReLU(inplace=False))
         layers.append(nn.Conv2d(features, features, kernel_size=5, padding=2, dilation=1, stride=2, bias=False))
-        layers.append(nn.BatchNorm2d(features))
+        layers.append(nn.BatchNorm2d(features,momentum=BN_MOMENTUM))
         layers.append(nn.ReLU(inplace=False))
         layers.append(nn.Conv2d(features, 1, kernel_size=5, padding=2, dilation=1, stride=2, bias=True))
         self.layers = nn.Sequential(*layers)
@@ -38,14 +40,6 @@ class PolicyNet(nn.Module):
 
 
     def forward(self, x):
-        N, C, H, W = x.shape
-        # GRID_H, GRID_W = int(H/self.block_size), int(W/self.block_size)
-        # INPUT_H = GRID_H * self._ds_factor
-        # INPUT_W = GRID_W * self._ds_factor
-        # SCALE_H = INPUT_H / H
-        # SCALE_W = INPUT_W / W
-        # assert SCALE_H == SCALE_W
-
         # rescale image to lower resolution
         SCALE = self._ds_factor / self.block_size
         x = F.interpolate(x, scale_factor=SCALE, mode='nearest')
@@ -57,12 +51,13 @@ class PolicyNet(nn.Module):
 
 
 class Policy(nn.Module, metaclass=ABCMeta):
-    def __init__(self, block_size: int, quantize_percentage: float, percent_target: float, **kwargs):
+    def __init__(self, block_size: int, quantize_percentage: float, percent_target: float, sparsity_weight: float, **kwargs):
         super().__init__()
         self.block_size = block_size
         self.quantize_percentage = quantize_percentage
         self.percent_target = percent_target
         self.policy_net = PolicyNet(block_size, width_factor=1)
+        self.sparsity_weight = sparsity_weight
     
     @abstractmethod
     def forward(self, x: torch.Tensor, meta: dict):
@@ -151,7 +146,7 @@ class PolicyReinforce(Policy):
         advantage_task = reward_task - loss_mean # reduce variance by providing baseline
         
         # combine
-        advantage = advantage_task + 1*reward_sparsity # add sparsity reward (single float) to per-block advantage
+        advantage = advantage_task + self.sparsity_weight*reward_sparsity # add sparsity reward (single float) to per-block advantage
         advantage[~grid] = -advantage[~grid] # for low-res blocks, flip advantage (i.e. low loss should provide better reward)
         meta['advantage'] = advantage
         meta['advantage_task'] = advantage_task

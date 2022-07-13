@@ -1,23 +1,30 @@
 from __future__ import annotations
+
+import functools
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from yaml import warnings
+
 from segblocks.utils.profiler import timings
 
-from .cuda import blocksplit, blockcombine, blockpad, batchnorm
+from .ops import batchnorm, blockcombine, blockpad, blocksplit
 
-VERBOSE = False # print verbose 
-NO_BLOCKPAD = False # debug flag, disable blockpad and apply the functions as is
+## flags
+VERBOSE = False # verbose print 
+USE_BLOCKPAD = True # debug flag to disable blockpad
 USE_INTERPOLATION_SPEED_TRICK = True # bilinear interpolation is slow on small spatial dimensions, but trilinear is fast
+USE_DUALRES_BATCHNORM = True # use custom batch norm with statistics over both high-res and low-res blocks
 
 
-HANDLED_FUNCTIONS = {}
+HANDLED_FUNCTIONS = {} # functions that can be handled by dualrestensors
 
-import functools
+
 def implements(torch_functions: Iterable):
-    """Register a torch function override for DualResTensor"""
+    """
+    Register a torch function override for DualResTensor
+    in HANDLED_FUNCTIONS
+    """
     @functools.wraps(torch_functions)
     def decorator(func):
         for torch_function in torch_functions:
@@ -26,12 +33,32 @@ def implements(torch_functions: Iterable):
     return decorator
 
 
-def is_dualrestensor(x):
+def is_dualrestensor(x: object) -> bool:
+    """
+    check if x is a dualres tensor
+    """
     return isinstance(x, DualResTensor)
 
 
 class DualResMetaData(object):
-    def __init__(self, grid):
+    """
+    Class that keeps the metadata of a dualres tensor.
+
+    Given a binary grid (N, GH, GW), the metadata consists of:
+    - nhighres: number of highres blocks (grid[,,] = 1)
+    - nlowres: number of lowres blocks (grid[,,] = 0)
+    - map_hr (nhighres, GH, GW) of dtype int32, giving the mapping
+        from highres index (0 to nhighres-1) to the original grid index(flattened)
+    - map_lr (nlowres, GH, GW) of dtype int32, giving the mapping
+        from lowres index (0 to nlowres-1) to the original grid index(flattened)
+    - block_idx: int32 tensor of shape [N, GH, GW], giving the the mapping from
+        the original grid index to the batch index in map_hr or map_lr
+        for map_hr, the value is >= 0, 
+        for map_lr, the value is < 0 by subtracting N*GH*GW from the real index
+
+    """
+
+    def __init__(self, grid: torch.Tensor):
         assert grid.dtype == torch.bool
         assert grid.dim() == 3
 
@@ -79,11 +106,11 @@ class DualResMetaData(object):
         
 
 class DualResTensor(object):   
-    '''
+    """
     Custom PyTorch Tensor
     https://pytorch.org/docs/stable/notes/extending.html
-    '''
-    LOWRES_FACTOR = 2
+    """
+    LOWRES_FACTOR = 2 # side length factor of lowres vs highres blocks
 
     def __init__(self, highres: torch.Tensor, lowres: torch.Tensor, metadata: DualResMetaData):
         self.highres = highres
@@ -91,28 +118,28 @@ class DualResTensor(object):
         self.metadata = metadata
     
     @property
-    def block_size(self):
-        '''
+    def block_size(self) -> int:
+        """
         returns the size (length of a side in pixels) of a block
-        '''
+        """
         return self.highres.shape[-1]
     
     @property
-    def grid_shape(self):
-        '''
+    def grid_shape(self) -> torch.Size:
+        """
         returns the shape of the grid
         4D tensor of shape (N, 1, GRID_H, GRID_W)
         with N the batch size
-        '''
+        """
         return self.metadata.grid.shape
 
 
     @property
-    def represented_shape(self):
-        '''
+    def represented_shape(self) -> Tuple[int, int, int, int]:
+        """
         get the shape that the blocks represent
         as N, C, H, W
-        '''
+        """
         N = self.metadata.grid.size(0)
         C = self.highres.size(1)
         H = self.block_size * self.grid_shape[1]
@@ -120,41 +147,51 @@ class DualResTensor(object):
         return N, C, H, W
     
     @property
-    def shape(self):
+    def shape(self) -> Tuple[torch.Size, torch.Size]:
+        """
+        returns the shape of both highres and lowres tensors
+        """
         return (self.highres.shape, self.lowres.shape)
     
-    def size(self, dim=None):
+    def size(self, dim=None) -> Tuple[torch.Size, torch.Size]:
+        """
+        same as method shape, but with the optional dim argument
+        to specify the dimension
+        """
         if dim is not None:
-            return self.shape[dim]
+            return (s[dim] for s in self.shape)
         else:
             return self.shape
 
-    def dim(self):
+    def dim(self) -> int:
+        """
+        returns the number of dimensions 
+        """
         return self.highres.dim()
 
     @property
-    def dtype(self):
-        '''
+    def dtype(self) -> torch.dtype:
+        """
         return the data type
-        '''
+        """
         return self.highres.dtype
 
     @property
-    def device(self):
-        '''
+    def device(self) -> torch.device:
+        """
         return the device
-        '''
+        """
         return self.highres.device
 
     @classmethod
     def to_blocks(cls, x: torch.Tensor, grid: torch.BoolTensor) -> DualResTensor:
-        '''
+        """
         Initialize DualResTensor from normal 4D tensor x with NCHW layout 
         and grid tensor of dtype bool with shape (N, 1, GRID_H, GRID_W).
         The block size is determined as H//GRID_H, so H must be a multiple of GRID_H
         and W must be a multiple of GRID_W, with H//GRID_H == W//GRID_W.
         Only suports CUDA, and all tensors should be on a CUDA device
-        '''
+        """
         assert isinstance(x, torch.Tensor)
         assert isinstance(grid, torch.Tensor)
         assert grid.dtype == torch.bool
@@ -198,19 +235,19 @@ class DualResTensor(object):
             return DualResTensor(data_hr, data_lr, metadata)
 
     @classmethod
-    def to_blocks_like(cls, x: torch.Tensor, other: 'DualResTensor'):
-        '''
+    def to_blocks_like(cls, x: torch.Tensor, other: DualResTensor) -> DualResTensor:
+        """
         Initialize DualResTensor from another DualResTensor
-        '''
+        """
         return DualResTensor._to_blocks_with_metadata(x, other.metadata)
 
     def __repr__(self):
         return f"DualResTensor(highres={self.highres.shape}, lowres={self.lowres.shape}, grid={self.metadata.grid.shape}, blocksize={self.block_size}, represented_shape={self.represented_shape})"
     
     def combine(self) -> torch.Tensor:
-        '''
+        """
         Combine highres and lowres patches to a single NCHW tensor
-        '''
+        """
         with timings.env('dualrestensor/combine'):
             out = torch.empty(self.represented_shape, device=self.highres.device, dtype=self.highres.dtype)
             out = blockcombine.CombineFunction.apply(out, self.highres, self.lowres, self.metadata.block_idx, self.block_size, self.LOWRES_FACTOR)
@@ -222,6 +259,9 @@ class DualResTensor(object):
 
     @classmethod
     def __torch_function__(cls, func: Callable, types: Tuple, args: Tuple = (), kwargs: Optional[Dict] = None) -> Any:
+        """
+        Handles pytorch functions
+        """
         if kwargs is None:
             kwargs = {}
         if func.__name__ not in HANDLED_FUNCTIONS:
@@ -232,25 +272,33 @@ class DualResTensor(object):
             print(f"{func.__name__}: {out.dtype} {out.shape}")
         return out
 
-    def _inplace_op(self, other, op):
-        if isinstance(other, DualResTensor):
-            self.highres = getattr(self.highres, op)(other.highres)
-            self.lowres = getattr(self.lowres, op)(other.lowres)
-            return self
-        else:
+    def _dual_op(self, other: DualResTensor, op_name: str) -> DualResTensor:
+        """
+        General inplace operation
+        """
+        if not isinstance(other, DualResTensor):
             raise NotImplementedError(f"{type(other)} not supported")
+        self.highres = getattr(self.highres, op_name)(other.highres)
+        self.lowres = getattr(self.lowres, op_name)(other.lowres)
+        return self
 
-    def __add__(self, other):
-        return self._inplace_op(other, '__add__')
+    def __add__(self, other: DualResTensor) -> DualResTensor:
+        return self._dual_op(other, '__add__')
 
-    def __sub__(self, other):
-        return self._inplace_op(other, '__sub__')
+    def __sub__(self, other: DualResTensor) -> DualResTensor:
+        return self._dual_op(other, '__sub__')
+
+    def __mul__(self, other: DualResTensor) -> DualResTensor:
+        return self._dual_op(other, '__mul__')
+    
+    
 
 
-def apply_func_on_dualres(func, *args, **kwargs):
-    '''
+
+def apply_func_on_dualres(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     Apply a function on both high-res and low-res tensors of DualResTensors
-    '''
+    """
     args_hr, args_lr = [], []
     kwargs_hr, kwargs_lr = {}, {}
     metadata = None
@@ -282,15 +330,15 @@ def apply_func_on_dualres(func, *args, **kwargs):
     return out
 
 @implements(['conv2d', 'max_pool2d', 'avg_pool2d', 'lp_pool2d', 'fractional_max_pool2d'])
-def padded_functions(func, *args, **kwargs):
-    '''
+def padded_functions(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     Handles functions with sliding kernels that use padding to preserve 
     the input dimensions
     
     Replaces zero-padding with BlockPadding, to preserve information flow 
     between blocks
-    '''
-    if NO_BLOCKPAD: # for debug purposes
+    """
+    if not USE_BLOCKPAD: # for debug purposes
         with timings.env('dualrestensor/blockpad_func'):
             return apply_func_on_dualres(func, *args, **kwargs)
 
@@ -317,54 +365,22 @@ def padded_functions(func, *args, **kwargs):
 
     
     dualres = args[0]
-    assert(isinstance(dualres, DualResTensor))
+    assert isinstance(dualres, DualResTensor)
 
     # if func has padding, replace with BlockPadding
     if padding > 0:
         with timings.env('dualrestensor/blockpad'):
-            # if BLOCKPAD_ZERO:
-            #     # for debug purposes
-            #     highres = F.pad(dualres.highres, (padding, padding, padding, padding), mode='constant', value=0)
-            #     lowres = F.pad(dualres.lowres, (padding, padding, padding, padding), mode='constant', value=0)
-            # else:
-            #     highres, lowres = blockpad.BlockPadAvg.apply(
-            #             dualres.highres, dualres.lowres, dualres.metadata.map_hr, dualres.metadata.map_lr, dualres.metadata.block_idx,
-            #             dualres.block_size, dualres.LOWRES_FACTOR, padding
-            #     )
-            #     args[0] = highres
-            #     out_hr = func(*args, **kwargs)
-            #     del highres
-            #     args[0] = lowres
-            #     out_lr = func(*args, **kwargs)
-            #     del lowres
-
-            if True:
-                def run_func_padded(is_highres):
-                    with timings.env('dualrestensor/blockpad'):
-                        data_padded = blockpad.BlockPadAvgSep.apply(dualres.highres, dualres.lowres,
-                            dualres.metadata.map_hr, dualres.metadata.map_lr, dualres.metadata.block_idx, padding, is_highres)
-                    args[0] = data_padded
-                    with timings.env('dualrestensor/blockpad_func'):
-                        out = func(*args, **kwargs)
-                    del data_padded
-                    return out
-                out_hr = run_func_padded(is_highres=True)
-                out_lr = run_func_padded(is_highres=False)
-            else:
-                # old version
+            def run_func_padded(is_highres: bool) -> torch.Tensor:
                 with timings.env('dualrestensor/blockpad'):
-                    highres, lowres = blockpad.BlockPadAvg.apply(
-                        dualres.highres, dualres.lowres, dualres.metadata.map_hr, dualres.metadata.map_lr, dualres.metadata.block_idx,
-                        dualres.block_size, dualres.LOWRES_FACTOR, padding
-                    )
+                    data_padded = blockpad.BlockPad.apply(dualres.highres, dualres.lowres,
+                        dualres.metadata.map_hr, dualres.metadata.map_lr, dualres.metadata.block_idx, padding, is_highres)
+                args[0] = data_padded
                 with timings.env('dualrestensor/blockpad_func'):
-                    args[0] = highres
-                    out_hr = func(*args, **kwargs)
-                    del highres
-                    args[0] = lowres
-                    out_lr = func(*args, **kwargs)
-                    del lowres
-
+                    out = func(*args, **kwargs)
+                del data_padded
+                return out
+            out_hr = run_func_padded(is_highres=True)
+            out_lr = run_func_padded(is_highres=False)
 
     else:
         with timings.env('dualrestensor/blockpad_func_nopadding'):
@@ -378,13 +394,13 @@ def padded_functions(func, *args, **kwargs):
     return out
 
 @implements(['batch_norm'])
-def batch_norm_functions(func, *args, **kwargs):
-    '''
+def batch_norm_functions(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     When training, we need to get batch norm statistics over both high-res and low-res tensors.
     During validation, batch statistics are saved batchnorm can be executed over both high-res 
     and low-res tensors separately
-    '''
-    if not kwargs['training']:
+    """
+    if not USE_DUALRES_BATCHNORM:
         out = apply_func_on_dualres(func, *args, **kwargs)
     else:
         with timings.env('dualrestensor/custom_batch_norm'):
@@ -399,19 +415,19 @@ def batch_norm_functions(func, *args, **kwargs):
             out = DualResTensor(highres=out_hr, lowres=out_lr, metadata=dualres.metadata)
     return out
 
-@implements(['relu', 'hardtanh', '__add__'])
-def per_res(func, *args, **kwargs):
-    '''
+@implements(['relu', 'hardtanh', '__add__',  '__sub__'])
+def per_resolution(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     Operations that can be performed as-is on the high and low-resolutoin tensor
-    '''
+    """
     return apply_func_on_dualres(func, *args, **kwargs)
 
 @implements(['interpolate', 'upsample_bilinear'])
-def interpolate(func, *args, **kwargs):
-    '''
+def interpolate(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     bilinear interpolation is slow in blocks for some reason, 
     but using trilinear as a trick works
-    '''
+    """
     with timings.env('dualrestensor/interpolate'):
         if not USE_INTERPOLATION_SPEED_TRICK or kwargs['mode'] != 'bilinear':
             return apply_func_on_dualres(func, *args, **kwargs)
@@ -431,19 +447,19 @@ def interpolate(func, *args, **kwargs):
             return DualResTensor(highres=out_hr, lowres=out_lr, metadata=dualres.metadata)
 
 @implements(['mean', 'sum', 'max', 'min,', 'std', 'var', 'argmax', 'count_nonzero', 'nonzero'])
-def channel_only(func, *args, **kwargs):
-    '''
+def channel_only(func: Callable, *args, **kwargs) -> DualResTensor:
+    """
     Only compatible in batch dimension
-    '''
+    """
     if 'dim' in kwargs and kwargs['dim'] == 1:
         pass
     else:
-        print(f'Functon {func.__name__} might behave differently with DualResTensor when dim != 1!')
+        warnings.warn(f'Functon {func.__name__} might behave differently with DualResTensor when dim != 1!')
     return apply_func_on_dualres(func, *args, **kwargs)
 
 @implements(['adaptive_avg_pool2d', 'adaptive_max_pool2d', 'linear', 'flip', 'unsqueeze', 'reshape', 'view'])
-def incompatible(func, *args, **kwargs):
-    '''
+def incompatible(func: Callable, *args, **kwargs):
+    """
     Incompatible functions
-    '''
+    """
     raise NotImplementedError(f"{func.__name__} not supported for DualResTensor!")
